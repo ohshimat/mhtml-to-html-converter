@@ -1,0 +1,54 @@
+From: <Saved by Blink>
+Snapshot-Content-Location: http://example.com/test.html
+Subject: Test Page
+Date: Sat, 21 Dec 2024 12:00:00 -0000
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="----MultipartBoundary--test123"
+
+
+------MultipartBoundary--test123
+Content-Type: text/html
+Content-ID: <frame-0@mhtml.blink>
+Content-Transfer-Encoding: quoted-printable
+Content-Location: http://example.com/test.html
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test MHTML Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            color: #333;
+        }
+        .content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1>MHTML Converter Test</h1>
+        <p>This is a test page for the MHTML to HTML converter.</p>
+        <p>If you can read this, the converter is working!</p>
+        <img src="http://example.com/test.png" alt="Test Image">
+    </div>
+</body>
+</html>
+
+------MultipartBoundary--test123
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-Location: http://example.com/test.png
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
+
+------MultipartBoundary--test123--
