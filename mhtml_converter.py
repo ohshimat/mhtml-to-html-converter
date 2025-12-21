@@ -133,10 +133,16 @@ class MHTMLConverter:
             # Microsoft Office formats
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
             'application/msword': 'doc',
+            'application/vnd.ms-word': 'doc',
+            'application/x-msword': 'doc',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
             'application/vnd.ms-excel': 'xls',
+            'application/x-msexcel': 'xls',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
             'application/vnd.ms-powerpoint': 'ppt',
+            'application/x-mspowerpoint': 'ppt',
+            # PDF
+            'application/pdf': 'pdf',
         }
         
         # Content-Typeからベースタイプを抽出（パラメータを除去）
