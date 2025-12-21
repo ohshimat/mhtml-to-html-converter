@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+MHTML to HTML Converter
+
+このスクリプトは、MHTMLファイルを解析し、含まれるHTMLパートを
+複数のファイルに分割して、個別のサブディレクトリに保存します。
+
+使用方法:
+    python mhtml_converter.py <mhtml_file_path> [output_directory]
+"""
+
+import os
+import sys
+import email
+import hashlib
+import argparse
+from pathlib import Path
+from email import policy
+from email.parser import BytesParser
+from datetime import datetime
+import base64
+import quopri
+
+
+class MHTMLConverter:
+    """MHTMLファイルをHTMLファイルに変換するクラス"""
+    
+    def __init__(self, mhtml_path, output_dir=None):
+        """
+        初期化
+        
+        Args:
+            mhtml_path (str): MHTMLファイルのパス
+            output_dir (str): 出力ディレクトリ（デフォルト: mhtml_output）
+        """
+        self.mhtml_path = Path(mhtml_path)
+        if not self.mhtml_path.exists():
+            raise FileNotFoundError(f"MHTMLファイルが見つかりません: {mhtml_path}")
+        
+        if output_dir:
+            self.output_dir = Path(output_dir)
+        else:
+            # デフォルトの出力ディレクトリ名を生成
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.output_dir = Path(f"mhtml_output_{timestamp}")
+        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.html_count = 0
+        
+    def parse_mhtml(self):
+        """
+        MHTMLファイルを解析
+        
+        Returns:
+            email.message.Message: 解析されたメッセージオブジェクト
+        """
+        try:
+            with open(self.mhtml_path, 'rb') as f:
+                msg = BytesParser(policy=policy.default).parse(f)
+            return msg
+        except Exception as e:
+            raise RuntimeError(f"MHTMLファイルの解析に失敗しました: {e}")
+    
+    def decode_content(self, part):
+        """
+        パートのコンテンツをデコード
+        
+        Args:
+            part: メールパート
+            
+        Returns:
+            bytes: デコードされたコンテンツ
+        """
+        content = part.get_payload(decode=False)
+        encoding = part.get('Content-Transfer-Encoding', '').lower()
+        
+        if isinstance(content, str):
+            content = content.encode('utf-8', errors='ignore')
+        
+        try:
+            if encoding == 'base64':
+                return base64.b64decode(content)
+            elif encoding == 'quoted-printable':
+                return quopri.decodestring(content)
+            elif encoding in ['7bit', '8bit', 'binary', '']:
+                return content
+            else:
+                # その他のエンコーディングの場合はそのまま返す
+                return content
+        except Exception as e:
+            print(f"警告: コンテンツのデコードに失敗しました: {e}")
+            return content
+    
+    def generate_unique_filename(self, content, extension='html'):
+        """
+        コンテンツのハッシュからユニークなファイル名を生成
+        
+        Args:
+            content (bytes): ファイルのコンテンツ
+            extension (str): ファイル拡張子
+            
+        Returns:
+            str: ユニークなファイル名
+        """
+        hash_obj = hashlib.md5(content)
+        hash_str = hash_obj.hexdigest()[:8]
+        self.html_count += 1
+        return f"html_part_{self.html_count}_{hash_str}.{extension}"
+    
+    def extract_html_parts(self, msg):
+        """
+        メッセージからHTMLパートを抽出
+        
+        Args:
+            msg: 解析されたメッセージオブジェクト
+            
+        Returns:
+            list: HTMLパートのリスト
+        """
+        html_parts = []
+        
+        def process_part(part, level=0):
+            """再帰的にパートを処理"""
+            content_type = part.get_content_type()
+            
+            # HTMLコンテンツを検出
+            if content_type == 'text/html':
+                html_parts.append(part)
+            
+            # マルチパートの場合は再帰的に処理
+            if part.is_multipart():
+                for subpart in part.iter_parts():
+                    process_part(subpart, level + 1)
+        
+        # メッセージ全体を処理
+        if msg.is_multipart():
+            for part in msg.iter_parts():
+                process_part(part)
+        else:
+            # シングルパートの場合
+            if msg.get_content_type() == 'text/html':
+                html_parts.append(msg)
+        
+        return html_parts
+    
+    def save_html_part(self, part, index):
+        """
+        HTMLパートを個別のサブディレクトリに保存
+        
+        Args:
+            part: メールパート
+            index (int): パートのインデックス
+            
+        Returns:
+            str: 保存されたファイルのパス
+        """
+        try:
+            # コンテンツをデコード
+            content = self.decode_content(part)
+            
+            # エンコーディングを検出・変換
+            try:
+                # まずUTF-8として試す
+                html_content = content.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    # 次にShift-JISを試す
+                    html_content = content.decode('shift-jis')
+                except UnicodeDecodeError:
+                    try:
+                        # ISO-8859-1を試す
+                        html_content = content.decode('iso-8859-1')
+                    except UnicodeDecodeError:
+                        # エラーを無視してUTF-8で強制デコード
+                        html_content = content.decode('utf-8', errors='ignore')
+            
+            # ユニークなファイル名を生成
+            filename = self.generate_unique_filename(content)
+            
+            # サブディレクトリを作成
+            subdir = self.output_dir / f"html_part_{index + 1}"
+            subdir.mkdir(parents=True, exist_ok=True)
+            
+            # ファイルパスを生成
+            file_path = subdir / filename
+            
+            # HTMLファイルを保存（UTF-8で保存）
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            
+            print(f"保存しました: {file_path}")
+            return str(file_path)
+            
+        except Exception as e:
+            print(f"エラー: HTMLパート {index + 1} の保存に失敗しました: {e}")
+            return None
+    
+    def convert(self):
+        """
+        MHTMLファイルを変換してHTMLファイルを生成
+        
+        Returns:
+            list: 保存されたファイルパスのリスト
+        """
+        print(f"MHTMLファイルを解析中: {self.mhtml_path}")
+        
+        # MHTMLを解析
+        msg = self.parse_mhtml()
+        
+        # HTMLパートを抽出
+        html_parts = self.extract_html_parts(msg)
+        
+        if not html_parts:
+            print("警告: HTMLパートが見つかりませんでした")
+            return []
+        
+        print(f"{len(html_parts)} 個のHTMLパートが見つかりました")
+        
+        # 各HTMLパートを保存
+        saved_files = []
+        for i, part in enumerate(html_parts):
+            file_path = self.save_html_part(part, i)
+            if file_path:
+                saved_files.append(file_path)
+        
+        print(f"\n変換完了: {len(saved_files)} 個のHTMLファイルを保存しました")
+        print(f"出力ディレクトリ: {self.output_dir.absolute()}")
+        
+        return saved_files
+
+
+def main():
+    """メイン関数"""
+    parser = argparse.ArgumentParser(
+        description='MHTMLファイルをHTMLファイルに変換します',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用例:
+  python mhtml_converter.py example.mhtml
+  python mhtml_converter.py example.mhtml -o output_folder
+  python mhtml_converter.py example.mhtml --output-dir my_html_files
+        """
+    )
+    
+    parser.add_argument(
+        'mhtml_file',
+        help='変換するMHTMLファイルのパス'
+    )
+    
+    parser.add_argument(
+        '-o', '--output-dir',
+        dest='output_dir',
+        default=None,
+        help='出力ディレクトリ（デフォルト: mhtml_output_YYYYMMDD_HHMMSS）'
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        # コンバータを作成
+        converter = MHTMLConverter(args.mhtml_file, args.output_dir)
+        
+        # 変換を実行
+        converter.convert()
+        
+        return 0
+        
+    except FileNotFoundError as e:
+        print(f"エラー: {e}", file=sys.stderr)
+        return 1
+    except RuntimeError as e:
+        print(f"エラー: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"予期しないエラーが発生しました: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
