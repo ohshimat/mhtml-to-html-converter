@@ -75,7 +75,7 @@ class MHTMLConverter:
         encoding = part.get('Content-Transfer-Encoding', '').lower()
         
         if isinstance(content, str):
-            content = content.encode('utf-8', errors='ignore')
+            content = content.encode('utf-8', errors='replace')
         
         try:
             if encoding == 'base64':
@@ -103,9 +103,9 @@ class MHTMLConverter:
             str: ユニークなファイル名
         
         Note:
-            MD5はファイル名の一意性のためのみに使用（セキュリティ目的ではない）
+            SHA-256をファイル名の一意性のために使用
         """
-        hash_obj = hashlib.md5(content)
+        hash_obj = hashlib.sha256(content)
         hash_str = hash_obj.hexdigest()[:8]
         self.html_count += 1
         return f"html_part_{self.html_count}_{hash_str}.{extension}"
@@ -186,8 +186,8 @@ class MHTMLConverter:
                             # ISO-8859-1を試す
                             html_content = content.decode('iso-8859-1')
                         except UnicodeDecodeError:
-                            # エラーを無視してUTF-8で強制デコード
-                            html_content = content.decode('utf-8', errors='ignore')
+                            # エラーを置換してUTF-8で強制デコード
+                            html_content = content.decode('utf-8', errors='replace')
             
             # ユニークなファイル名を生成
             filename = self.generate_unique_filename(content)
