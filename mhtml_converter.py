@@ -217,7 +217,7 @@ class MHTMLConverter:
         
         Args:
             html_content (str): HTMLコンテンツ
-            html_subdir (Path): HTMLファイルが保存されるサブディレクトリ
+            html_subdir (Path): HTMLファイルが保存されるサブディレクトリ（未使用だが互換性のため保持）
             
         Returns:
             str: リンクが書き換えられたHTMLコンテンツ
@@ -242,15 +242,18 @@ class MHTMLConverter:
             # html_part_X から ../resources/filename への相対パス
             relative_path = f"../resources/{resource_file.name}"
             
-            # HTMLコンテンツ内でこのリソースへの参照を置換
-            # 完全なURLを置換
-            html_content = html_content.replace(resource_url, relative_path)
-            html_content = html_content.replace(f'"{resource_url}"', f'"{relative_path}"')
-            html_content = html_content.replace(f"'{resource_url}'", f"'{relative_path}'")
+            # HTMLコンテンツ内でこのリソースへの参照を正確に置換
+            # 完全なURLを属性値として置換（クォートで囲まれている場合）
+            html_content = re.sub(
+                rf'((?:src|href|data)\s*=\s*["\'])({re.escape(resource_url)})(["\'])',
+                rf'\1{relative_path}\3',
+                html_content,
+                flags=re.IGNORECASE
+            )
             
-            # ファイル名のみの参照も置換（相対パス）
+            # ファイル名のみの参照を置換（同じファイル名の別リソースと区別するため、完全一致のみ）
             if url_filename:
-                # src="filename" や href="filename" のパターンを置換
+                # 正確なファイル名マッチング（属性値全体が一致する場合のみ）
                 html_content = re.sub(
                     rf'((?:src|href|data)\s*=\s*["\'])({re.escape(url_filename)})(["\'])',
                     rf'\1{relative_path}\3',
@@ -398,7 +401,7 @@ class MHTMLConverter:
             file_path, content_location = self.save_resource_part(part, i)
             if file_path:
                 saved_resources.append(file_path)
-                # Content-LocationとファイルパスをマッピングとReso store
+                # Content-Locationとファイルパスをマッピングに保存
                 if content_location:
                     self.resource_map[content_location] = file_path
         
