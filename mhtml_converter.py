@@ -181,8 +181,9 @@ class MHTMLConverter:
                 html_parts.append(part)
             # その他のリソースを検出（multipartとtext/plainは除外）
             elif not part.is_multipart() and content_type != 'text/plain':
-                # 実際のコンテンツがあるパートのみを追加
-                if part.get_payload(decode=False):
+                # 実際のコンテンツがあるパートのみを追加（空白のみのコンテンツは除外）
+                payload = part.get_payload(decode=False)
+                if payload and (isinstance(payload, bytes) or payload.strip()):
                     resource_parts.append(part)
             
             # マルチパートの場合は再帰的に処理
@@ -200,7 +201,10 @@ class MHTMLConverter:
             if content_type == 'text/html':
                 html_parts.append(msg)
             elif content_type != 'text/plain':
-                resource_parts.append(msg)
+                # 空白のみのコンテンツは除外
+                payload = msg.get_payload(decode=False)
+                if payload and (isinstance(payload, bytes) or payload.strip()):
+                    resource_parts.append(msg)
         
         return html_parts, resource_parts
     
