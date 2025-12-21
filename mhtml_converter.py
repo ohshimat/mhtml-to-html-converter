@@ -10,7 +10,6 @@ MHTML to HTML Converter
     python mhtml_converter.py <mhtml_file_path> [output_directory]
 """
 
-import os
 import sys
 import email
 import hashlib
@@ -123,7 +122,7 @@ class MHTMLConverter:
         """
         html_parts = []
         
-        def process_part(part, level=0):
+        def process_part(part):
             """再帰的にパートを処理"""
             content_type = part.get_content_type()
             
@@ -134,7 +133,7 @@ class MHTMLConverter:
             # マルチパートの場合は再帰的に処理
             if part.is_multipart():
                 for subpart in part.iter_parts():
-                    process_part(subpart, level + 1)
+                    process_part(subpart)
         
         # メッセージ全体を処理
         if msg.is_multipart():
