@@ -3,8 +3,8 @@
 """
 MHTML to HTML Converter
 
-このスクリプトは、MHTMLファイルを解析し、含まれるHTMLパートを
-複数のファイルに分割して、個別のサブディレクトリに保存します。
+このスクリプトは、MHTMLファイルを解析し、含まれるHTMLパートと
+リソースファイル（画像、CSS、JavaScriptなど）を抽出して保存します。
 
 使用方法:
     python mhtml_converter.py <mhtml_file_path> [output_directory]
@@ -46,6 +46,7 @@ class MHTMLConverter:
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.html_count = 0
+        self.resource_count = 0
         
     def parse_mhtml(self):
         """
@@ -91,6 +92,48 @@ class MHTMLConverter:
             print(f"警告: コンテンツのデコードに失敗しました: {e}", file=sys.stderr)
             return content
     
+    def get_file_extension(self, content_type):
+        """
+        Content-Typeから適切なファイル拡張子を取得
+        
+        Args:
+            content_type (str): Content-Typeヘッダーの値
+            
+        Returns:
+            str: ファイル拡張子
+        """
+        # 一般的なMIMEタイプと拡張子のマッピング
+        mime_to_ext = {
+            'text/html': 'html',
+            'text/css': 'css',
+            'text/javascript': 'js',
+            'application/javascript': 'js',
+            'application/x-javascript': 'js',
+            'image/jpeg': 'jpg',
+            'image/jpg': 'jpg',
+            'image/png': 'png',
+            'image/gif': 'gif',
+            'image/svg+xml': 'svg',
+            'image/webp': 'webp',
+            'image/bmp': 'bmp',
+            'image/x-icon': 'ico',
+            'font/woff': 'woff',
+            'font/woff2': 'woff2',
+            'font/ttf': 'ttf',
+            'font/otf': 'otf',
+            'application/font-woff': 'woff',
+            'application/font-woff2': 'woff2',
+            'application/json': 'json',
+            'application/xml': 'xml',
+            'text/xml': 'xml',
+            'text/plain': 'txt',
+        }
+        
+        # Content-Typeからベースタイプを抽出（パラメータを除去）
+        base_type = content_type.split(';')[0].strip().lower()
+        
+        return mime_to_ext.get(base_type, 'bin')
+    
     def generate_unique_filename(self, content, extension='html'):
         """
         コンテンツのハッシュからユニークなファイル名を生成
@@ -107,20 +150,27 @@ class MHTMLConverter:
         """
         hash_obj = hashlib.sha256(content)
         hash_str = hash_obj.hexdigest()[:8]
-        self.html_count += 1
-        return f"html_part_{self.html_count}_{hash_str}.{extension}"
+        
+        # HTML用とリソース用で別のカウンターを使用
+        if extension == 'html':
+            self.html_count += 1
+            return f"html_part_{self.html_count}_{hash_str}.{extension}"
+        else:
+            self.resource_count += 1
+            return f"resource_{self.resource_count}_{hash_str}.{extension}"
     
-    def extract_html_parts(self, msg):
+    def extract_all_parts(self, msg):
         """
-        メッセージからHTMLパートを抽出
+        メッセージからすべてのパート（HTMLとリソース）を抽出
         
         Args:
             msg: 解析されたメッセージオブジェクト
             
         Returns:
-            list: HTMLパートのリスト
+            tuple: (html_parts, resource_parts) のタプル
         """
         html_parts = []
+        resource_parts = []
         
         def process_part(part):
             """再帰的にパートを処理"""
@@ -129,6 +179,11 @@ class MHTMLConverter:
             # HTMLコンテンツを検出
             if content_type == 'text/html':
                 html_parts.append(part)
+            # その他のリソースを検出（multipartとtext/plainは除外）
+            elif not part.is_multipart() and content_type != 'text/plain':
+                # 実際のコンテンツがあるパートのみを追加
+                if part.get_payload(decode=False):
+                    resource_parts.append(part)
             
             # マルチパートの場合は再帰的に処理
             if part.is_multipart():
@@ -141,10 +196,13 @@ class MHTMLConverter:
                 process_part(part)
         else:
             # シングルパートの場合
-            if msg.get_content_type() == 'text/html':
+            content_type = msg.get_content_type()
+            if content_type == 'text/html':
                 html_parts.append(msg)
+            elif content_type != 'text/plain':
+                resource_parts.append(msg)
         
-        return html_parts
+        return html_parts, resource_parts
     
     def save_html_part(self, part, index):
         """
@@ -210,38 +268,88 @@ class MHTMLConverter:
             print(f"エラー: HTMLパート {index + 1} の保存に失敗しました: {e}", file=sys.stderr)
             return None
     
+    def save_resource_part(self, part, index):
+        """
+        リソースパートを保存
+        
+        Args:
+            part: メールパート
+            index (int): パートのインデックス
+            
+        Returns:
+            str: 保存されたファイルのパス
+        """
+        try:
+            # コンテンツをデコード
+            content = self.decode_content(part)
+            
+            # Content-Typeから拡張子を取得
+            content_type = part.get_content_type()
+            extension = self.get_file_extension(content_type)
+            
+            # ユニークなファイル名を生成
+            filename = self.generate_unique_filename(content, extension)
+            
+            # リソース用のサブディレクトリを作成
+            subdir = self.output_dir / "resources"
+            subdir.mkdir(parents=True, exist_ok=True)
+            
+            # ファイルパスを生成
+            file_path = subdir / filename
+            
+            # バイナリファイルとして保存
+            with open(file_path, 'wb') as f:
+                f.write(content)
+            
+            print(f"保存しました: {file_path} ({content_type})")
+            return str(file_path)
+            
+        except Exception as e:
+            print(f"エラー: リソース {index + 1} の保存に失敗しました: {e}", file=sys.stderr)
+            return None
+    
     def convert(self):
         """
-        MHTMLファイルを変換してHTMLファイルを生成
+        MHTMLファイルを変換してHTMLファイルとリソースを生成
         
         Returns:
-            list: 保存されたファイルパスのリスト
+            dict: 保存されたファイルパスの辞書 {'html': [...], 'resources': [...]}
         """
         print(f"MHTMLファイルを解析中: {self.mhtml_path}")
         
         # MHTMLを解析
         msg = self.parse_mhtml()
         
-        # HTMLパートを抽出
-        html_parts = self.extract_html_parts(msg)
+        # HTMLパートとリソースパートを抽出
+        html_parts, resource_parts = self.extract_all_parts(msg)
         
-        if not html_parts:
-            print("警告: HTMLパートが見つかりませんでした")
-            return []
+        if not html_parts and not resource_parts:
+            print("警告: 抽出可能なパートが見つかりませんでした")
+            return {'html': [], 'resources': []}
         
         print(f"{len(html_parts)} 個のHTMLパートが見つかりました")
+        print(f"{len(resource_parts)} 個のリソースが見つかりました")
         
         # 各HTMLパートを保存
-        saved_files = []
+        saved_html = []
         for i, part in enumerate(html_parts):
             file_path = self.save_html_part(part, i)
             if file_path:
-                saved_files.append(file_path)
+                saved_html.append(file_path)
         
-        print(f"\n変換完了: {len(saved_files)} 個のHTMLファイルを保存しました")
+        # 各リソースパートを保存
+        saved_resources = []
+        for i, part in enumerate(resource_parts):
+            file_path = self.save_resource_part(part, i)
+            if file_path:
+                saved_resources.append(file_path)
+        
+        print(f"\n変換完了:")
+        print(f"  HTMLファイル: {len(saved_html)} 個")
+        print(f"  リソースファイル: {len(saved_resources)} 個")
         print(f"出力ディレクトリ: {self.output_dir.absolute()}")
         
-        return saved_files
+        return {'html': saved_html, 'resources': saved_resources}
 
 
 def main():
