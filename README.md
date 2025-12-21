@@ -19,6 +19,7 @@ MHTMLファイル（MIMEカプセル化されたHTMLドキュメント）を解�
 - **スタイルシート**: CSS
 - **スクリプト**: JavaScript
 - **フォント**: WOFF, WOFF2, TTF, OTF
+- **Microsoft Office文書**: Word (DOCX, DOC), Excel (XLSX, XLS), PowerPoint (PPTX, PPT)
 - **その他**: JSON, XML, テキストファイルなど
 
 ## 必要な環境
@@ -90,10 +91,11 @@ output_directory/
 これにより、抽出されたHTMLファイルをブラウザで開くと、リソースが正しく読み込まれます。
 
 ## サンプルファイル
-リポジトリには2つのサンプルファイルが含まれています：
+リポジトリには3つのサンプルファイルが含まれています：
 
 1. `example.mhtml` - 基本的なMHTMLファイル（HTMLのみ）
 2. `example_with_resources.mhtml` - リソースファイル（CSS、画像）を含むMHTMLファイル
+3. `example_with_office_docs.mhtml` - Microsoft Office文書（DOCX、XLSX、PPTX）を含むMHTMLファイル
 
 スクリプトの動作を確認できます：
 
@@ -103,6 +105,9 @@ python mhtml_converter.py example.mhtml
 
 # リソース抽出の例
 python mhtml_converter.py example_with_resources.mhtml
+
+# Office文書の抽出例
+python mhtml_converter.py example_with_office_docs.mhtml
 ```
 
 ## ライセンス
