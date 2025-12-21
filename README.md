@@ -56,7 +56,7 @@ output_files/
 
 ## 動作要件
 
-- **OS**: Windows XP以降
+- **OS**: Windows 7以降（推奨: Windows 10/11）
 - **必要なコンポーネント**: 
   - Windows Script Host (cscript.exe)
   - FileSystemObject (標準)
@@ -148,7 +148,7 @@ cscript convert_mhtml.vbs [input.mhtml] [output_directory]
 
 ### Requirements
 
-- Windows XP or later
+- Windows 7 or later (Recommended: Windows 10/11)
 - Windows Script Host (included in Windows)
 
 ### Features

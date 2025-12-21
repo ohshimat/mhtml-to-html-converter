@@ -6,7 +6,7 @@
 
 ## 前提条件 / Prerequisites
 
-- Windows OS (XP以降 / XP or later)
+- Windows OS (7以降 / 7 or later recommended)
 - Windows Script Host (標準でインストール済み / Pre-installed)
 
 ## テスト方法 / Testing Instructions

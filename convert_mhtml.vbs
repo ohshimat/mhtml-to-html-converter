@@ -14,6 +14,7 @@ Const ForReading = 1
 Const ForWriting = 2
 Const TristateTrue = -1  ' Unicode
 Const TristateFalse = 0  ' ASCII
+Const MaxDuplicateFileAttempts = 1000  ' Maximum attempts for duplicate filename resolution
 
 ' Initialize FileSystemObject
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -309,7 +310,7 @@ Function GetUniqueFileName(dir, fileName)
             Exit Function
         End If
         counter = counter + 1
-    Loop While counter < 1000
+    Loop While counter < MaxDuplicateFileAttempts
     
     GetUniqueFileName = fileName
 End Function
@@ -415,7 +416,7 @@ Function DecodeQuotedPrintable(content)
     ' Replace =XX with corresponding character
     pos = InStr(result, "=")
     
-    Do While pos > 0 And pos <= Len(result)
+    Do While pos > 0
         modified = False
         
         ' Check for soft line break (= followed by CRLF, CR, or LF)
@@ -441,15 +442,10 @@ Function DecodeQuotedPrintable(content)
         End If
         
         ' Update position: if text was modified, search from current pos; otherwise skip current pos
-        If modified Then
-            pos = InStr(pos, result, "=")
-        Else
-            If pos >= Len(result) Then
-                pos = 0
-            Else
-                pos = InStr(pos + 1, result, "=")
-            End If
+        If Not modified And pos < Len(result) Then
+            pos = pos + 1
         End If
+        pos = InStr(pos, result, "=")
     Loop
     
     DecodeQuotedPrintable = result
