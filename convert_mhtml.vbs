@@ -407,35 +407,49 @@ End Function
 
 Function DecodeQuotedPrintable(content)
     Dim result, i, char, nextChar
+    Dim pos, nextTwoChars, hexValue, modified
     
     result = content
     
     ' Simple quoted-printable decoder
     ' Replace =XX with corresponding character
-    Dim pos, nextTwoChars
     pos = InStr(result, "=")
     
     Do While pos > 0 And pos <= Len(result)
+        modified = False
+        
         ' Check for soft line break (= followed by CRLF, CR, or LF)
         If pos < Len(result) Then
             nextTwoChars = Mid(result, pos + 1, 2)
             If nextTwoChars = vbCrLf Then
                 ' Soft line break with CRLF
                 result = Left(result, pos - 1) & Mid(result, pos + 3)
+                modified = True
             ElseIf Mid(result, pos + 1, 1) = vbCr Or Mid(result, pos + 1, 1) = vbLf Then
                 ' Soft line break with CR or LF only
                 result = Left(result, pos - 1) & Mid(result, pos + 2)
+                modified = True
             ElseIf pos + 2 <= Len(result) And IsHexDigit(Mid(result, pos + 1, 1)) And IsHexDigit(Mid(result, pos + 2, 1)) Then
                 ' Hex encoded character
-                Dim hexValue
                 hexValue = Mid(result, pos + 1, 2)
                 result = Left(result, pos - 1) & Chr(CLng("&H" & hexValue)) & Mid(result, pos + 3)
+                modified = True
             Else
                 ' Invalid sequence, skip this = character
                 pos = pos + 1
             End If
         End If
-        pos = InStr(pos + 1, result, "=")
+        
+        ' Update position: if text was modified, search from current pos; otherwise skip current pos
+        If modified Then
+            pos = InStr(pos, result, "=")
+        Else
+            If pos >= Len(result) Then
+                pos = 0
+            Else
+                pos = InStr(pos + 1, result, "=")
+            End If
+        End If
     Loop
     
     DecodeQuotedPrintable = result
