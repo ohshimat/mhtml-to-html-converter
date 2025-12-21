@@ -93,6 +93,20 @@ def embed_resources(html_content, resources):
     url_to_data_uri = {}
     
     for location, (content_type, data) in resources.items():
+        # For CSS files, replace URLs inside them first
+        if content_type == 'text/css' and isinstance(data, bytes):
+            css_text = data.decode('utf-8', errors='ignore')
+            # Replace URLs in the CSS with data URIs from resources
+            for css_url, (css_res_type, css_res_data) in resources.items():
+                if css_res_type.startswith('image/') or css_res_type.startswith('font/'):
+                    css_res_b64 = base64.b64encode(css_res_data).decode('ascii')
+                    css_res_data_uri = f"data:{css_res_type};base64,{css_res_b64}"
+                    # Replace various CSS url() formats
+                    css_text = css_text.replace(f"url('{css_url}')", f"url('{css_res_data_uri}')")
+                    css_text = css_text.replace(f'url("{css_url}")', f'url("{css_res_data_uri}")')
+                    css_text = css_text.replace(f'url({css_url})', f'url({css_res_data_uri})')
+            data = css_text.encode('utf-8')
+        
         # Convert binary data to base64 data URI
         if isinstance(data, bytes):
             b64_data = base64.b64encode(data).decode('ascii')
