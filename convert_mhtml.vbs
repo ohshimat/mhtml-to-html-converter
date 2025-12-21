@@ -149,18 +149,31 @@ Sub ProcessMHTMLFile(inputPath, outputHtml, resourcesPath)
 End Sub
 
 Function ExtractBoundary(content)
-    Dim lines, i, line, pos
+    Dim lines, i, line, pos, boundaryValue, semicolonPos
     
-    lines = Split(content, vbCrLf)
+    ' Normalize line endings to handle different formats
+    content = Replace(content, vbCrLf, vbLf)
+    content = Replace(content, vbCr, vbLf)
+    lines = Split(content, vbLf)
     
     For i = 0 To UBound(lines)
         line = lines(i)
         If InStr(1, LCase(line), "boundary=", vbTextCompare) > 0 Then
             pos = InStr(1, line, "boundary=", vbTextCompare)
-            ExtractBoundary = Mid(line, pos + 9)
+            boundaryValue = Mid(line, pos + 9)
+            
             ' Remove quotes if present
-            ExtractBoundary = Replace(ExtractBoundary, """", "")
-            ExtractBoundary = Trim(ExtractBoundary)
+            boundaryValue = Replace(boundaryValue, """", "")
+            boundaryValue = Trim(boundaryValue)
+            
+            ' Stop at semicolon if present (additional parameters)
+            semicolonPos = InStr(boundaryValue, ";")
+            If semicolonPos > 0 Then
+                boundaryValue = Left(boundaryValue, semicolonPos - 1)
+                boundaryValue = Trim(boundaryValue)
+            End If
+            
+            ExtractBoundary = boundaryValue
             Exit Function
         End If
     Next
@@ -399,18 +412,28 @@ Function DecodeQuotedPrintable(content)
     
     ' Simple quoted-printable decoder
     ' Replace =XX with corresponding character
-    Dim pos
+    Dim pos, nextTwoChars
     pos = InStr(result, "=")
     
-    Do While pos > 0 And pos < Len(result) - 1
-        If Mid(result, pos + 1, 1) = vbCrLf Or Mid(result, pos + 1, 1) = vbCr Or Mid(result, pos + 1, 1) = vbLf Then
-            ' Soft line break
-            result = Left(result, pos - 1) & Mid(result, pos + 2)
-        ElseIf IsHexDigit(Mid(result, pos + 1, 1)) And IsHexDigit(Mid(result, pos + 2, 1)) Then
-            ' Hex encoded character
-            Dim hexValue
-            hexValue = Mid(result, pos + 1, 2)
-            result = Left(result, pos - 1) & Chr(CLng("&H" & hexValue)) & Mid(result, pos + 3)
+    Do While pos > 0 And pos <= Len(result)
+        ' Check for soft line break (= followed by CRLF, CR, or LF)
+        If pos < Len(result) Then
+            nextTwoChars = Mid(result, pos + 1, 2)
+            If nextTwoChars = vbCrLf Then
+                ' Soft line break with CRLF
+                result = Left(result, pos - 1) & Mid(result, pos + 3)
+            ElseIf Mid(result, pos + 1, 1) = vbCr Or Mid(result, pos + 1, 1) = vbLf Then
+                ' Soft line break with CR or LF only
+                result = Left(result, pos - 1) & Mid(result, pos + 2)
+            ElseIf pos + 2 <= Len(result) And IsHexDigit(Mid(result, pos + 1, 1)) And IsHexDigit(Mid(result, pos + 2, 1)) Then
+                ' Hex encoded character
+                Dim hexValue
+                hexValue = Mid(result, pos + 1, 2)
+                result = Left(result, pos - 1) & Chr(CLng("&H" & hexValue)) & Mid(result, pos + 3)
+            Else
+                ' Invalid sequence, skip this = character
+                pos = pos + 1
+            End If
         End If
         pos = InStr(pos + 1, result, "=")
     Loop
