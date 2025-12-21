@@ -1,0 +1,16 @@
+# Output files
+output.html
+output_files/
+
+# Test outputs
+test_output/
+*.test.html
+
+# Windows specific
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*~
