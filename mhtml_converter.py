@@ -89,7 +89,7 @@ class MHTMLConverter:
                 # その他のエンコーディングの場合はそのまま返す
                 return content
         except Exception as e:
-            print(f"警告: コンテンツのデコードに失敗しました: {e}")
+            print(f"警告: コンテンツのデコードに失敗しました: {e}", file=sys.stderr)
             return content
     
     def generate_unique_filename(self, content, extension='html'):
@@ -102,6 +102,9 @@ class MHTMLConverter:
             
         Returns:
             str: ユニークなファイル名
+        
+        Note:
+            MD5はファイル名の一意性のためのみに使用（セキュリティ目的ではない）
         """
         hash_obj = hashlib.md5(content)
         hash_str = hash_obj.hexdigest()[:8]
@@ -159,21 +162,33 @@ class MHTMLConverter:
             # コンテンツをデコード
             content = self.decode_content(part)
             
+            # Content-Typeヘッダーから文字エンコーディングを取得
+            charset = part.get_content_charset()
+            
             # エンコーディングを検出・変換
-            try:
-                # まずUTF-8として試す
-                html_content = content.decode('utf-8')
-            except UnicodeDecodeError:
+            if charset:
                 try:
-                    # 次にShift-JISを試す
-                    html_content = content.decode('shift-jis')
+                    html_content = content.decode(charset)
+                except (UnicodeDecodeError, LookupError):
+                    # 指定されたcharsetでデコードできない場合はフォールバック
+                    charset = None
+            
+            if not charset:
+                # charsetが指定されていない、または失敗した場合
+                try:
+                    # まずUTF-8として試す
+                    html_content = content.decode('utf-8')
                 except UnicodeDecodeError:
                     try:
-                        # ISO-8859-1を試す
-                        html_content = content.decode('iso-8859-1')
+                        # 次にShift-JISを試す
+                        html_content = content.decode('shift-jis')
                     except UnicodeDecodeError:
-                        # エラーを無視してUTF-8で強制デコード
-                        html_content = content.decode('utf-8', errors='ignore')
+                        try:
+                            # ISO-8859-1を試す
+                            html_content = content.decode('iso-8859-1')
+                        except UnicodeDecodeError:
+                            # エラーを無視してUTF-8で強制デコード
+                            html_content = content.decode('utf-8', errors='ignore')
             
             # ユニークなファイル名を生成
             filename = self.generate_unique_filename(content)
@@ -193,7 +208,7 @@ class MHTMLConverter:
             return str(file_path)
             
         except Exception as e:
-            print(f"エラー: HTMLパート {index + 1} の保存に失敗しました: {e}")
+            print(f"エラー: HTMLパート {index + 1} の保存に失敗しました: {e}", file=sys.stderr)
             return None
     
     def convert(self):
