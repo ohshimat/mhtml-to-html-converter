@@ -1,0 +1,28 @@
+# Generated HTML files from test conversions
+test_example.html
+test_complex.html
+*.html
+
+# Test MHTML files (keep only test_example.mhtml as example)
+test_complex.mhtml
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
