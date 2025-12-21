@@ -52,7 +52,8 @@ def parse_mhtml(mhtml_path):
             if content_transfer_encoding == 'base64':
                 try:
                     decoded_payload = base64.b64decode(payload)
-                except:
+                except (base64.binascii.Error, ValueError) as e:
+                    # If decoding fails, use the original payload
                     decoded_payload = payload
             elif content_transfer_encoding == 'quoted-printable':
                 decoded_payload = quopri.decodestring(payload)
@@ -92,19 +93,26 @@ def embed_resources(html_content, resources):
     # Create a mapping of URLs to data URIs
     url_to_data_uri = {}
     
+    # First pass: Build lookup for image/font resources for CSS processing
+    image_font_resources = {}
+    for location, (content_type, data) in resources.items():
+        if content_type.startswith('image/') or content_type.startswith('font/'):
+            if isinstance(data, bytes):
+                css_res_b64 = base64.b64encode(data).decode('ascii')
+                css_res_data_uri = f"data:{content_type};base64,{css_res_b64}"
+                image_font_resources[location] = css_res_data_uri
+    
+    # Second pass: Process all resources
     for location, (content_type, data) in resources.items():
         # For CSS files, replace URLs inside them first
         if content_type == 'text/css' and isinstance(data, bytes):
             css_text = data.decode('utf-8', errors='ignore')
             # Replace URLs in the CSS with data URIs from resources
-            for css_url, (css_res_type, css_res_data) in resources.items():
-                if css_res_type.startswith('image/') or css_res_type.startswith('font/'):
-                    css_res_b64 = base64.b64encode(css_res_data).decode('ascii')
-                    css_res_data_uri = f"data:{css_res_type};base64,{css_res_b64}"
-                    # Replace various CSS url() formats
-                    css_text = css_text.replace(f"url('{css_url}')", f"url('{css_res_data_uri}')")
-                    css_text = css_text.replace(f'url("{css_url}")', f'url("{css_res_data_uri}")')
-                    css_text = css_text.replace(f'url({css_url})', f'url({css_res_data_uri})')
+            for css_url, css_res_data_uri in image_font_resources.items():
+                # Replace various CSS url() formats
+                css_text = css_text.replace(f"url('{css_url}')", f"url('{css_res_data_uri}')")
+                css_text = css_text.replace(f'url("{css_url}")', f'url("{css_res_data_uri}")')
+                css_text = css_text.replace(f'url({css_url})', f'url({css_res_data_uri})')
             data = css_text.encode('utf-8')
         
         # Convert binary data to base64 data URI
