@@ -20,6 +20,8 @@ from email.parser import BytesParser
 from datetime import datetime
 import base64
 import quopri
+import re
+from urllib.parse import urlparse, unquote
 
 
 class MHTMLConverter:
@@ -47,6 +49,7 @@ class MHTMLConverter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.html_count = 0
         self.resource_count = 0
+        self.resource_map = {}  # Content-Locationからファイルパスへのマッピング
         
     def parse_mhtml(self):
         """
@@ -208,6 +211,55 @@ class MHTMLConverter:
         
         return html_parts, resource_parts
     
+    def rewrite_html_links(self, html_content, html_subdir):
+        """
+        HTMLコンテンツ内のリソースリンクを書き換える
+        
+        Args:
+            html_content (str): HTMLコンテンツ
+            html_subdir (Path): HTMLファイルが保存されるサブディレクトリ
+            
+        Returns:
+            str: リンクが書き換えられたHTMLコンテンツ
+        """
+        if not self.resource_map:
+            return html_content
+        
+        # リソースマップをURLパスでソート（長い方から処理して部分一致を防ぐ）
+        sorted_resources = sorted(self.resource_map.items(), key=lambda x: len(x[0]), reverse=True)
+        
+        for resource_url, resource_path in sorted_resources:
+            if not resource_url:
+                continue
+            
+            # URLからファイル名を取得
+            parsed_url = urlparse(resource_url)
+            url_path = unquote(parsed_url.path)
+            url_filename = url_path.split('/')[-1] if url_path else ''
+            
+            # リソースファイルの相対パスを計算
+            resource_file = Path(resource_path)
+            # html_part_X から ../resources/filename への相対パス
+            relative_path = f"../resources/{resource_file.name}"
+            
+            # HTMLコンテンツ内でこのリソースへの参照を置換
+            # 完全なURLを置換
+            html_content = html_content.replace(resource_url, relative_path)
+            html_content = html_content.replace(f'"{resource_url}"', f'"{relative_path}"')
+            html_content = html_content.replace(f"'{resource_url}'", f"'{relative_path}'")
+            
+            # ファイル名のみの参照も置換（相対パス）
+            if url_filename:
+                # src="filename" や href="filename" のパターンを置換
+                html_content = re.sub(
+                    rf'((?:src|href|data)\s*=\s*["\'])({re.escape(url_filename)})(["\'])',
+                    rf'\1{relative_path}\3',
+                    html_content,
+                    flags=re.IGNORECASE
+                )
+        
+        return html_content
+    
     def save_html_part(self, part, index):
         """
         HTMLパートを個別のサブディレクトリに保存
@@ -258,6 +310,9 @@ class MHTMLConverter:
             subdir = self.output_dir / f"html_part_{index + 1}"
             subdir.mkdir(parents=True, exist_ok=True)
             
+            # リソースへのリンクを書き換え
+            html_content = self.rewrite_html_links(html_content, subdir)
+            
             # ファイルパスを生成
             file_path = subdir / filename
             
@@ -281,7 +336,7 @@ class MHTMLConverter:
             index (int): パートのインデックス
             
         Returns:
-            str: 保存されたファイルのパス
+            tuple: (保存されたファイルのパス, Content-Location)
         """
         try:
             # コンテンツをデコード
@@ -305,12 +360,15 @@ class MHTMLConverter:
             with open(file_path, 'wb') as f:
                 f.write(content)
             
+            # Content-Locationを取得
+            content_location = part.get('Content-Location', '')
+            
             print(f"保存しました: {file_path} ({content_type})")
-            return str(file_path)
+            return str(file_path), content_location
             
         except Exception as e:
             print(f"エラー: リソース {index + 1} の保存に失敗しました: {e}", file=sys.stderr)
-            return None
+            return None, None
     
     def convert(self):
         """
@@ -334,19 +392,22 @@ class MHTMLConverter:
         print(f"{len(html_parts)} 個のHTMLパートが見つかりました")
         print(f"{len(resource_parts)} 個のリソースが見つかりました")
         
-        # 各HTMLパートを保存
+        # まず各リソースパートを保存してマッピングを構築
+        saved_resources = []
+        for i, part in enumerate(resource_parts):
+            file_path, content_location = self.save_resource_part(part, i)
+            if file_path:
+                saved_resources.append(file_path)
+                # Content-LocationとファイルパスをマッピングとReso store
+                if content_location:
+                    self.resource_map[content_location] = file_path
+        
+        # リソースマッピングが構築された後にHTMLパートを保存（リンクを書き換えるため）
         saved_html = []
         for i, part in enumerate(html_parts):
             file_path = self.save_html_part(part, i)
             if file_path:
                 saved_html.append(file_path)
-        
-        # 各リソースパートを保存
-        saved_resources = []
-        for i, part in enumerate(resource_parts):
-            file_path = self.save_resource_part(part, i)
-            if file_path:
-                saved_resources.append(file_path)
         
         print(f"\n変換完了:")
         print(f"  HTMLファイル: {len(saved_html)} 個")
