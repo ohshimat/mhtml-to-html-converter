@@ -1,0 +1,46 @@
+From: <Saved by Blink>
+Snapshot-Content-Location: http://example.com/
+Subject: Test MHTML with DOC and PDF
+Date: Sat, 21 Dec 2024 14:00:00 -0000
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="----MultipartBoundary--docpdf123--"
+
+
+------MultipartBoundary--docpdf123--
+Content-Type: text/html
+Content-ID: <frame-1@example.com>
+Content-Transfer-Encoding: quoted-printable
+Content-Location: http://example.com/index.html
+
+<!DOCTYPE html>
+<html lang=3D"ja">
+<head>
+    <meta charset=3D"UTF-8">
+    <title>=E3=83=86=E3=82=B9=E3=83=88</title>
+</head>
+<body>
+    <h1>DOC=E3=81=A8PDF=E3=81=AE=E3=83=86=E3=82=B9=E3=83=88</h1>
+    <ul>
+        <li><a href=3D"old_document.doc">Word=E6=96=87=E6=9B=B8 (DOC)</a></li>
+        <li><a href=3D"manual.pdf">PDF=E3=83=95=E3=82=A1=E3=82=A4=E3=83=AB</a></li>
+    </ul>
+</body>
+</html>
+
+------MultipartBoundary--docpdf123--
+Content-Type: application/msword
+Content-Transfer-Encoding: base64
+Content-Location: http://example.com/old_document.doc
+
+0M8R4KGxGuEAAAAAAAAAAAAAAAAAAAAAPgADAPv/CQAGAAAAAAAAAAAAAAABAAAAAQAAAAAAAAAA
+
+------MultipartBoundary--docpdf123--
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Location: http://example.com/manual.pdf
+
+JVBERi0xLjQKJeLjz9MKMyAwIG9iago8PC9GaWx0ZXIvRmxhdGVEZWNvZGUvTGVuZ3RoIDQ5Pj5z
+
+------MultipartBoundary--docpdf123----
